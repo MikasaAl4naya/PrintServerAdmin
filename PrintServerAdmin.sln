@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36804.6 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintServerAdmin", "PrintServerAdmin\PrintServerAdmin.csproj", "{03F868E1-4E44-466A-A5EC-94CE3F42D357}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{03F868E1-4E44-466A-A5EC-94CE3F42D357}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03F868E1-4E44-466A-A5EC-94CE3F42D357}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03F868E1-4E44-466A-A5EC-94CE3F42D357}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03F868E1-4E44-466A-A5EC-94CE3F42D357}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {91B7F383-92BE-4B36-B031-5AC67455CEE0}
+	EndGlobalSection
+EndGlobal
