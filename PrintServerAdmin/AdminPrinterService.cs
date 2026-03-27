@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Management;
 using System.Collections.Generic;
-using System.Windows.Forms; // Добавили для вывода ошибок на экран
+using System.Windows.Forms;
 
 namespace PrintServerAdmin
 {
@@ -22,121 +22,177 @@ namespace PrintServerAdmin
 
     public class AdminPrinterService
     {
-        // ================= ПОИСК ПО ИНВЕНТАРНИКУ (С ОТЛАДКОЙ) =================
-        public RemotePrinterInfo FindPrinterForDeletion(string invNumber)
+        // === СУПЕРБЫСТРЫЙ ПОИСК ПО ИНВЕНТАРНИКУ ===
+        public RemotePrinterInfo FindPrinterForDeletion(string invNumber, IProgress<int> progress = null)
         {
             string paddedInv = invNumber.PadLeft(6, '0');
-            string errorLog = "";
+            var servers = ConfigService.PrintServers;
+            int totalServers = servers.Count;
+            if (totalServers == 0) return null;
 
-            foreach (var server in ConfigService.PrintServers)
+            int step = 0;
+            // 4 шага на каждый сервер для плавного прогресс-бара
+            int totalSteps = totalServers * 4;
+            void Report() { step++; progress?.Report((step * 100) / totalSteps); }
+
+            progress?.Report(0);
+
+            foreach (var server in servers)
             {
                 try
                 {
-                    ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2");
-                    scope.Connect(); // Если тут нет прав, мы об этом узнаем
+                    ConnectionOptions options = new ConnectionOptions { Timeout = TimeSpan.FromSeconds(3) };
+                    ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2", options);
+                    scope.Connect();
+                    Report(); // Шаг 1: Подключились
 
-                    using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, PortName, ShareName, Location, Comment FROM Win32_Printer")))
+                    // Махом скачиваем все порты в кэш (Секрет скорости!)
+                    var portDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    using (var portSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, HostAddress FROM Win32_TCPIPPrinterPort")))
                     {
-                        foreach (ManagementObject printer in searcher.Get())
+                        foreach (ManagementObject port in portSearcher.Get())
+                        {
+                            string pName = port["Name"]?.ToString();
+                            string pHost = port["HostAddress"]?.ToString();
+                            if (pName != null && pHost != null) portDict[pName] = pHost;
+                        }
+                    }
+                    Report(); // Шаг 2: Скачали порты
+
+                    using (var printSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, PortName, ShareName, Location, Comment FROM Win32_Printer")))
+                    {
+                        foreach (ManagementObject printer in printSearcher.Get())
                         {
                             string pName = printer["Name"]?.ToString() ?? "";
                             string share = printer["ShareName"]?.ToString() ?? "";
                             string loc = printer["Location"]?.ToString() ?? "";
                             string cmt = printer["Comment"]?.ToString() ?? "";
 
-                            if (pName.Contains(paddedInv) || share.Contains(paddedInv) ||
-                                pName.Contains(invNumber + "-") || share == invNumber ||
+                            // Проверяем совпадения в памяти программы (моментально)
+                            if (pName == invNumber || pName.Contains(invNumber) || pName.Contains(paddedInv) ||
+                                share.Contains(paddedInv) || share == invNumber ||
                                 loc.Contains(invNumber) || cmt.Contains(invNumber))
                             {
-                                string portName = printer["PortName"]?.ToString();
-                                string ip = GetIpFromPort(scope, portName) ?? portName;
+                                string portName = printer["PortName"]?.ToString() ?? "";
+                                string ip = portDict.ContainsKey(portName) ? portDict[portName] : portName;
+
+                                progress?.Report(100);
                                 return new RemotePrinterInfo { ServerName = server, PrinterName = pName, IpAddress = ip };
                             }
                         }
                     }
+                    Report(); // Шаг 3: Проверили принтеры
                 }
-                catch (Exception ex)
-                {
-                    errorLog += $"Сервер {server}: {ex.Message}\n";
-                }
+                catch { Report(); Report(); Report(); /* Если сервер недоступен, проматываем шаги */ }
+
+                Report(); // Шаг 4: Сервер обработан
             }
 
-            if (!string.IsNullOrEmpty(errorLog))
-            {
-                MessageBox.Show("Скрытые ошибки доступа WMI при поиске инв. номера:\n\n" + errorLog, "Отладка WMI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-
+            progress?.Report(100);
             return null;
         }
 
-        // ================= ПОИСК ПО IP (С ОТЛАДКОЙ) =================
-        public IpCheckResult CheckIpOnServers(string ipAddress)
+        // === СУПЕРБЫСТРЫЙ ПОИСК ПО IP ===
+        // === УЛУЧШЕННЫЙ ПОИСК ПО IP ===
+        public IpCheckResult CheckIpOnServers(string ipAddress, IProgress<int> progress = null)
         {
-            string errorLog = "";
+            var servers = ConfigService.PrintServers;
+            int totalServers = servers.Count;
+            if (totalServers == 0) return new IpCheckResult { IpExists = false };
 
-            foreach (var server in ConfigService.PrintServers)
+            ipAddress = ipAddress.Trim(); // Убираем пробелы из входящего IP
+            int step = 0;
+            int totalSteps = totalServers * 2; // Упростим шаги для прогресс-бара
+
+            progress?.Report(0);
+
+            // Список для хранения найденных "пустых" портов (на случай если принтер не найдется)
+            IpCheckResult emptyPortResult = null;
+
+            foreach (var server in servers)
             {
                 try
                 {
-                    ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2");
+                    ConnectionOptions options = new ConnectionOptions
+                    {
+                        Timeout = TimeSpan.FromSeconds(3),
+                        EnablePrivileges = true
+                    };
+                    ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2", options);
                     scope.Connect();
 
-                    // 1. Ищем прямо в именах портов принтеров (самый надежный способ)
+                    // 1. Кэшируем порты сервера
+                    var portDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, HostAddress FROM Win32_TCPIPPrinterPort")))
+                    {
+                        foreach (ManagementObject port in searcher.Get())
+                        {
+                            string pName = port["Name"]?.ToString()?.Trim();
+                            string pHost = port["HostAddress"]?.ToString()?.Trim();
+                            if (!string.IsNullOrEmpty(pName))
+                                portDict[pName] = pHost ?? "";
+                        }
+                    }
+
+                    // 2. Ищем принтеры, привязанные к этому IP
                     using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, PortName FROM Win32_Printer")))
                     {
                         foreach (ManagementObject printer in searcher.Get())
                         {
-                            string portName = printer["PortName"]?.ToString() ?? "";
-                            if (portName.Contains(ipAddress))
+                            string pName = printer["Name"]?.ToString()?.Trim() ?? "";
+                            string portName = printer["PortName"]?.ToString()?.Trim() ?? "";
+
+                            // Проверяем: совпадает ли имя порта с IP или HostAddress порта с IP
+                            bool isIpMatch = portName.Equals(ipAddress, StringComparison.OrdinalIgnoreCase) ||
+                                            portName.Equals("IP_" + ipAddress, StringComparison.OrdinalIgnoreCase) ||
+                                            (portDict.ContainsKey(portName) && portDict[portName].Equals(ipAddress, StringComparison.OrdinalIgnoreCase));
+
+                            if (isIpMatch)
                             {
+                                progress?.Report(100);
+                                // Нашли реальный принтер - это приоритет, возвращаем сразу
                                 return new IpCheckResult
                                 {
                                     IpExists = true,
                                     PortName = portName,
                                     ServerName = server,
-                                    AttachedPrinterName = printer["Name"]?.ToString()
+                                    AttachedPrinterName = pName
                                 };
                             }
                         }
                     }
 
-                    // 2. Ищем в физических TCP/IP портах
-                    using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, HostAddress FROM Win32_TCPIPPrinterPort")))
+                    // 3. Если принтер не найден, проверяем, нет ли просто "пустого" порта на этом сервере
+                    if (emptyPortResult == null)
                     {
-                        foreach (ManagementObject port in searcher.Get())
+                        foreach (var kvp in portDict)
                         {
-                            string pName = port["Name"]?.ToString() ?? "";
-                            string host = port["HostAddress"]?.ToString() ?? "";
-
-                            if (host == ipAddress || pName.Contains(ipAddress))
+                            if (kvp.Value.Equals(ipAddress, StringComparison.OrdinalIgnoreCase) ||
+                                kvp.Key.Equals(ipAddress, StringComparison.OrdinalIgnoreCase) ||
+                                kvp.Key.Equals("IP_" + ipAddress, StringComparison.OrdinalIgnoreCase))
                             {
-                                // Порт найден, ищем принтер на этом порту
-                                string attachedPrinter = null;
-                                using (var pSearcher = new ManagementObjectSearcher(scope, new ObjectQuery($"SELECT Name FROM Win32_Printer WHERE PortName = '{pName}'")))
+                                // Запоминаем, но не возвращаем сразу (вдруг на следующем сервере есть живой принтер)
+                                emptyPortResult = new IpCheckResult
                                 {
-                                    foreach (ManagementObject p in pSearcher.Get())
-                                    {
-                                        attachedPrinter = p["Name"]?.ToString();
-                                        break;
-                                    }
-                                }
-                                return new IpCheckResult { IpExists = true, PortName = pName, ServerName = server, AttachedPrinterName = attachedPrinter };
+                                    IpExists = true,
+                                    PortName = kvp.Key,
+                                    ServerName = server,
+                                    AttachedPrinterName = null
+                                };
                             }
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    errorLog += $"Сервер {server}: {ex.Message}\n";
-                }
+                catch { /* Игнорируем ошибки подключения к одному серверу */ }
+
+                step += 2;
+                progress?.Report(Math.Min((step * 100) / totalSteps, 99));
             }
 
-            if (!string.IsNullOrEmpty(errorLog))
-            {
-                MessageBox.Show("Скрытые ошибки доступа WMI при проверке IP:\n\n" + errorLog, "Отладка WMI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            progress?.Report(100);
 
-            return new IpCheckResult { IpExists = false };
+            // Если нашли хоть один пустой порт (и ни одного принтера), возвращаем его
+            return emptyPortResult ?? new IpCheckResult { IpExists = false };
         }
 
         public bool DeletePrinterFromServer(string server, string printerName)
@@ -145,8 +201,7 @@ namespace PrintServerAdmin
             {
                 ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2");
                 scope.Connect();
-                string query = $"SELECT * FROM Win32_Printer WHERE Name = '{printerName}'";
-                using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery(query)))
+                using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery($"SELECT * FROM Win32_Printer WHERE Name = '{printerName}'")))
                 {
                     foreach (ManagementObject printer in searcher.Get())
                     {
@@ -159,15 +214,29 @@ namespace PrintServerAdmin
             return false;
         }
 
-        public List<string> GetAvailableDrivers()
+        public List<string> GetAvailableDrivers(IProgress<int> progress = null)
         {
             HashSet<string> drivers = new HashSet<string>();
-            foreach (var server in ConfigService.PrintServers)
+            var servers = ConfigService.PrintServers;
+            int total = servers.Count;
+            if (total == 0) return new List<string>();
+
+            int step = 0;
+            int totalSteps = total * 3;
+            void Report() { step++; progress?.Report((step * 100) / totalSteps); }
+
+            progress?.Report(0);
+
+            foreach (int i in System.Linq.Enumerable.Range(0, total))
             {
+                string server = servers[i];
                 try
                 {
-                    ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2");
+                    ConnectionOptions options = new ConnectionOptions { Timeout = TimeSpan.FromSeconds(3) };
+                    ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2", options);
                     scope.Connect();
+                    Report();
+
                     using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name FROM Win32_PrinterDriver")))
                     {
                         foreach (ManagementObject driver in searcher.Get())
@@ -180,22 +249,31 @@ namespace PrintServerAdmin
                             }
                         }
                     }
+                    Report();
                 }
-                catch { }
+                catch { Report(); Report(); }
+                Report();
             }
+
             var list = new List<string>(drivers);
             list.Sort();
+            progress?.Report(100);
             return list;
         }
 
-        public bool CreatePrinterOnServer(string server, string printerName, string shareName, string ipAddress, string driverName, string location)
+        public bool CreatePrinterOnServer(string server, string printerName, string shareName, string ipAddress, string driverName, string location, IProgress<int> progress = null)
         {
             try
             {
+                progress?.Report(10);
                 ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2");
                 scope.Connect();
 
-                string portName = "IP_" + ipAddress;
+                progress?.Report(40);
+
+                // ВОТ ТУТ УБРАЛИ IP_
+                string portName = ipAddress;
+
                 ManagementClass portClass = new ManagementClass(scope, new ManagementPath("Win32_TCPIPPrinterPort"), null);
                 ManagementObject port = portClass.CreateInstance();
                 port["Name"] = portName;
@@ -204,36 +282,22 @@ namespace PrintServerAdmin
                 port["PortNumber"] = 9100;
                 port.Put();
 
+                progress?.Report(70);
                 ManagementClass printerClass = new ManagementClass(scope, new ManagementPath("Win32_Printer"), null);
                 ManagementObject printer = printerClass.CreateInstance();
                 printer["DeviceID"] = printerName;
                 printer["DriverName"] = driverName;
-                printer["PortName"] = portName;
+                printer["PortName"] = portName; // Используем то же имя без префикса
                 printer["Location"] = location;
                 printer["Network"] = true;
                 printer["Shared"] = true;
                 printer["ShareName"] = shareName;
                 printer.Put();
 
+                progress?.Report(100);
                 return true;
             }
-            catch { return false; }
-        }
-
-        private string GetIpFromPort(ManagementScope scope, string portName)
-        {
-            try
-            {
-                string query = $"SELECT HostAddress FROM Win32_TCPIPPrinterPort WHERE Name = '{portName}'";
-                using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery(query)))
-                {
-                    foreach (ManagementObject port in searcher.Get())
-                        return port["HostAddress"]?.ToString();
-                }
-                return portName;
-            }
-            catch { }
-            return null;
+            catch { progress?.Report(100); return false; }
         }
     }
 }
