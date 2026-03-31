@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Management;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace PrintServerAdmin
@@ -259,6 +260,56 @@ namespace PrintServerAdmin
             list.Sort();
             progress?.Report(100);
             return list;
+        }
+
+        public string FindDriverByIpOnServers(string ipAddress)
+        {
+            if (string.IsNullOrWhiteSpace(ipAddress)) return null;
+
+            var allServers = ConfigService.PrintServers
+                .Concat(ConfigService.TpPrintServers)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var server in allServers)
+            {
+                try
+                {
+                    ConnectionOptions options = new ConnectionOptions { Timeout = TimeSpan.FromSeconds(3) };
+                    ManagementScope scope = new ManagementScope($@"\\{server}\root\cimv2", options);
+                    scope.Connect();
+
+                    var portDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    using (var portSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, HostAddress FROM Win32_TCPIPPrinterPort")))
+                    {
+                        foreach (ManagementObject port in portSearcher.Get())
+                        {
+                            string pName = port["Name"]?.ToString()?.Trim();
+                            string pHost = port["HostAddress"]?.ToString()?.Trim();
+                            if (!string.IsNullOrEmpty(pName))
+                                portDict[pName] = pHost ?? "";
+                        }
+                    }
+
+                    using (var printSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Name, PortName, DriverName FROM Win32_Printer")))
+                    {
+                        foreach (ManagementObject printer in printSearcher.Get())
+                        {
+                            string portName = printer["PortName"]?.ToString()?.Trim() ?? "";
+                            bool isIpMatch = portName.Equals(ipAddress, StringComparison.OrdinalIgnoreCase) ||
+                                             portName.Equals("IP_" + ipAddress, StringComparison.OrdinalIgnoreCase) ||
+                                             (portDict.ContainsKey(portName) && portDict[portName].Equals(ipAddress, StringComparison.OrdinalIgnoreCase));
+                            if (!isIpMatch) continue;
+
+                            string driverName = printer["DriverName"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(driverName)) return driverName;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return null;
         }
 
         public bool CreatePrinterOnServer(string server, string printerName, string shareName, string ipAddress, string driverName, string location, IProgress<int> progress = null)

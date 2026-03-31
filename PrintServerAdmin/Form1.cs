@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -19,10 +20,12 @@ namespace PrintServerAdmin
         private string _finalShareName = "";
         private string _finalDriver = "";
         private string _finalLocation = "";
+        private string _suggestedDriver = "";
 
         // Пути для логирования
         private string _logFilePath = "";
         private string _defaultLocalLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "admin_log.txt");
+        private const string CsvLogHeader = "Timestamp;User;Action";
 
         private TabControl tabControl;
         private TabPage tabDelete;
@@ -45,6 +48,7 @@ namespace PrintServerAdmin
         private TextBox txtLocation;
         private TextBox txtInvNum;
         private ComboBox cmbType;
+        private Label lblSelectedBranch;
         private Button btnNextStep2;
         private Button btnBackStep2;
         private Label lblStatus2;
@@ -147,7 +151,7 @@ namespace PrintServerAdmin
         private void LogAction(string actionText)
         {
             string userName = Environment.UserName;
-            string logEntry = $"[{DateTime.Now:dd.MM.yyyy HH:mm:ss}] [{userName}] {actionText}{Environment.NewLine}";
+            string logEntry = BuildCsvLogEntry(userName, actionText);
 
             // 1. Пытаемся записать по основному пути (например, сетевому)
             try
@@ -172,8 +176,29 @@ namespace PrintServerAdmin
             if (string.IsNullOrWhiteSpace(path)) return false;
             string dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            EnsureCsvHeader(path);
             File.AppendAllText(path, text, Encoding.UTF8);
             return true;
+        }
+
+        private static string BuildCsvLogEntry(string userName, string actionText)
+        {
+            string ts = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            return $"{EscapeCsv(ts)};{EscapeCsv(userName)};{EscapeCsv(actionText)}{Environment.NewLine}";
+        }
+
+        private static string EscapeCsv(string value)
+        {
+            if (value == null) value = string.Empty;
+            value = value.Replace("\"", "\"\"");
+            bool mustQuote = value.Contains(";") || value.Contains("\"") || value.Contains("\r") || value.Contains("\n");
+            return mustQuote ? $"\"{value}\"" : value;
+        }
+
+        private static void EnsureCsvHeader(string path)
+        {
+            if (File.Exists(path) && new FileInfo(path).Length > 0) return;
+            File.WriteAllText(path, CsvLogHeader + Environment.NewLine, Encoding.UTF8);
         }
 
         private void SwitchToStep(int stepNumber)
@@ -190,7 +215,17 @@ namespace PrintServerAdmin
         private async void BtnNextStep1_Click(object sender, EventArgs e)
         {
             string ip = txtAddIp.Text.Trim();
-            if (string.IsNullOrEmpty(ip)) return;
+            if (string.IsNullOrEmpty(ip))
+            {
+                MessageBox.Show("Введите IP адрес принтера.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!IPAddress.TryParse(ip, out _))
+            {
+                MessageBox.Show("Некорректный формат IP адреса.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             LogAction($"ШАГ 1: Проверка IP {ip}");
             btnNextStep1.Enabled = false;
@@ -222,6 +257,13 @@ namespace PrintServerAdmin
                     this.Cursor = Cursors.Default;
 
                     if (delOk) LogAction($"УДАЛЕНИЕ: Устройство {checkResult.AttachedPrinterName} удалено для переустановки");
+                    else
+                    {
+                        LogAction($"ОШИБКА: Не удалось удалить устройство {checkResult.AttachedPrinterName} перед переустановкой");
+                        MessageBox.Show("Не удалось удалить существующий принтер. Повторите попытку.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        ResetStep1();
+                        return;
+                    }
                 }
                 else
                 {
@@ -238,6 +280,9 @@ namespace PrintServerAdmin
 
             // Переход к Шагу 2 (выбор драйвера)
             _currentIp = ip;
+            _suggestedDriver = await Task.Run(() => _adminService.FindDriverByIpOnServers(ip)) ?? "";
+            if (!string.IsNullOrWhiteSpace(_suggestedDriver))
+                LogAction($"ИНФО: Найден рекомендуемый драйвер для IP {ip}: {_suggestedDriver}");
             await LoadDriversAsync();
             ResetStep1();
             SwitchToStep(2);
@@ -305,7 +350,21 @@ namespace PrintServerAdmin
             if (ConfigService.Cities != null)
                 foreach (var city in ConfigService.Cities) cmbBranch.Items.Add(new KeyValuePair<string, string>(city.Code, city.Name));
             cmbBranch.DisplayMember = "Value"; cmbBranch.ValueMember = "Key";
+            cmbBranch.SelectedIndexChanged += CmbBranch_SelectedIndexChanged;
             pnlStep2.Controls.Add(cmbBranch);
+
+            yPos += spacing;
+            lblSelectedBranch = new Label
+            {
+                Text = "Выбран филиал: не выбран",
+                Top = yPos - 2,
+                Left = ctrlLeft,
+                Width = ctrlWidth,
+                Height = 24,
+                ForeColor = Color.DarkSlateBlue,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            pnlStep2.Controls.Add(lblSelectedBranch);
 
             yPos += spacing;
             pnlStep2.Controls.Add(new Label { Text = "Расположение принтера:", Top = yPos, Left = 20, Width = lblWidth });
@@ -399,9 +458,15 @@ namespace PrintServerAdmin
             var progress = new Progress<int>(percent => { if (percent >= 0 && percent <= 100) pbStep1.Value = percent; });
             var drivers = await Task.Run(() => _adminService.GetAvailableDrivers(progress));
             foreach (var d in drivers) cmbDriver.Items.Add(d);
-            if (cmbDriver.Items.Count > 0) cmbDriver.SelectedIndex = 0;
-            if (cmbBranch.Items.Count > 0) cmbBranch.SelectedIndex = 0;
+            cmbDriver.SelectedIndex = -1;
+            cmbBranch.SelectedIndex = -1;
             if (cmbType.Items.Count > 0) cmbType.SelectedIndex = 0;
+            UpdateBranchInfoLabel();
+
+            if (!string.IsNullOrWhiteSpace(_suggestedDriver))
+                lblStatus2.Text = $"Рекомендуемый драйвер: {_suggestedDriver}";
+            else
+                lblStatus2.Text = "Выберите драйвер вручную.";
         }
 
         private void PrepareStep3()
@@ -414,11 +479,25 @@ namespace PrintServerAdmin
             _finalDriver = cmbDriver.Text;
             _finalLocation = txtLocation.Text.Trim();
             _finalServer = "printsrv01";
+            bool hasTypedMap = false;
             if (ConfigService.Mappings != null)
             {
-                var map = ConfigService.Mappings.Find(m => m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase));
+                var typedMap = ConfigService.Mappings.Find(m =>
+                    m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(m.PrinterType) &&
+                    m.PrinterType.Equals(typeCode, StringComparison.OrdinalIgnoreCase));
+                hasTypedMap = typedMap != null;
+
+                var map = typedMap ?? ConfigService.Mappings.Find(m =>
+                    m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrWhiteSpace(m.PrinterType));
+
                 if (map != null) _finalServer = map.PrintServer;
             }
+
+            if (typeCode.Equals("TP", StringComparison.OrdinalIgnoreCase) && !hasTypedMap && ConfigService.TpPrintServers.Count > 0)
+                _finalServer = ConfigService.TpPrintServers[0];
+
             valServer.Text = _finalServer; valPrinterName.Text = _finalPrinterName;
             valShareName.Text = _finalShareName; valIp.Text = _currentIp;
             valDriver.Text = _finalDriver; valLocation.Text = _finalLocation;
@@ -427,7 +506,11 @@ namespace PrintServerAdmin
         private async void BtnFindDelete_Click(object sender, EventArgs e)
         {
             string inv = txtDeleteInv.Text.Trim();
-            if (string.IsNullOrEmpty(inv)) return;
+            if (string.IsNullOrEmpty(inv))
+            {
+                MessageBox.Show("Введите инвентарный номер.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             LogAction($"ПОИСК (УДАЛЕНИЕ): Инв. № {inv}");
             lblDeleteInfo.Text = "Поиск на серверах...";
             btnConfirmDelete.Visible = false;
@@ -439,7 +522,7 @@ namespace PrintServerAdmin
             pbDelete.Visible = false;
             if (_foundPrinter != null)
             {
-                lblDeleteInfo.Text = $"Найден: {_foundPrinter.PrinterName}\nСервер: {_foundPrinter.ServerName}";
+                lblDeleteInfo.Text = $"Найден: {_foundPrinter.PrinterName}\nIP: {_foundPrinter.IpAddress}\nСервер: {_foundPrinter.ServerName}";
                 LogAction($"РЕЗУЛЬТАТ: На сервере {_foundPrinter.ServerName} найден {_foundPrinter.PrinterName}");
                 btnConfirmDelete.Visible = true;
             }
@@ -449,7 +532,7 @@ namespace PrintServerAdmin
         private async void BtnConfirmDelete_Click(object sender, EventArgs e)
         {
             if (_foundPrinter == null) return;
-            var result = MessageBox.Show($"Удалить {_foundPrinter.PrinterName}?", "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var result = MessageBox.Show($"Удалить принтер {_foundPrinter.PrinterName} (IP: {_foundPrinter.IpAddress})?", "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (result == DialogResult.Yes)
             {
                 this.Cursor = Cursors.WaitCursor;
@@ -469,7 +552,30 @@ namespace PrintServerAdmin
 
         private async void BtnNextStep2_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtLocation.Text) || string.IsNullOrWhiteSpace(txtInvNum.Text)) return;
+            if (cmbDriver.SelectedItem == null)
+            {
+                MessageBox.Show("Драйвер не выбран. Выберите драйвер из списка.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (cmbBranch.SelectedItem == null)
+            {
+                MessageBox.Show("Филиал не выбран. Выберите филиал из списка.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (cmbType.SelectedItem == null)
+            {
+                MessageBox.Show("Тип принтера не выбран.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtLocation.Text) || string.IsNullOrWhiteSpace(txtInvNum.Text))
+            {
+                MessageBox.Show("Заполните все поля шага 2.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             string invNum = txtInvNum.Text.Trim();
             LogAction($"ШАГ 2: Проверка инв. № {invNum}");
             btnNextStep2.Enabled = false;
@@ -482,12 +588,24 @@ namespace PrintServerAdmin
             if (existingInv != null)
             {
                 LogAction($"ПРЕДУПРЕЖДЕНИЕ: Инв. № {invNum} занят на {existingInv.ServerName}");
-                var result = MessageBox.Show($"Инвентарник уже занят на {existingInv.ServerName}. Удалить?", "Дубликат", MessageBoxButtons.YesNo);
+                var result = MessageBox.Show(
+                    $"Найден принтер с таким инвентарным номером.\n\nИмя: {existingInv.PrinterName}\nИнв. номер: {invNum}\nСервер: {existingInv.ServerName}\n\nУдалить его?",
+                    "Дубликат инвентарного номера",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
                 if (result == DialogResult.Yes)
                 {
                     this.Cursor = Cursors.WaitCursor;
                     bool delOk = await Task.Run(() => _adminService.DeletePrinterFromServer(existingInv.ServerName, existingInv.PrinterName));
+                    this.Cursor = Cursors.Default;
                     if (delOk) LogAction($"УДАЛЕНИЕ ДУБЛЯ (ИНВ): {existingInv.PrinterName} удален");
+                    else
+                    {
+                        LogAction($"ОШИБКА: Не удалось удалить дубль инвентарного номера {existingInv.PrinterName}");
+                        MessageBox.Show("Не удалось удалить найденный дубль. Процесс остановлен.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        ResetStep2();
+                        return;
+                    }
                 }
                 else { LogAction("ОТМЕНА: Установка прервана из-за занятого инвентарника"); ResetStep2(); return; }
             }
@@ -498,5 +616,20 @@ namespace PrintServerAdmin
 
         private void ResetStep1() { this.Cursor = Cursors.Default; btnNextStep1.Enabled = true; lblStatus1.Text = ""; pbStep1.Visible = false; }
         private void ResetStep2() { btnNextStep2.Enabled = true; lblStatus2.Text = ""; pbStep2.Visible = false; }
+
+        private void CmbBranch_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateBranchInfoLabel();
+        }
+
+        private void UpdateBranchInfoLabel()
+        {
+            if (lblSelectedBranch == null) return;
+
+            if (cmbBranch?.SelectedItem is KeyValuePair<string, string> selected)
+                lblSelectedBranch.Text = $"Выбран филиал: {selected.Value} ({selected.Key})";
+            else
+                lblSelectedBranch.Text = "Выбран филиал: не выбран";
+        }
     }
 }
