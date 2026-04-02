@@ -570,9 +570,15 @@ namespace PrintServerAdmin
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(txtLocation.Text) || string.IsNullOrWhiteSpace(txtInvNum.Text))
+            if (string.IsNullOrWhiteSpace(txtLocation.Text))
             {
-                MessageBox.Show("Заполните все поля шага 2.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Заполните расположение принтера (комментарий).", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtInvNum.Text))
+            {
+                MessageBox.Show("Введите инвентарный номер принтера.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
