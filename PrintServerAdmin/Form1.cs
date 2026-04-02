@@ -221,7 +221,7 @@ namespace PrintServerAdmin
                 return;
             }
 
-            if (!IPAddress.TryParse(ip, out _))
+            if (!IsValidIPv4(ip))
             {
                 MessageBox.Show("Некорректный формат IP адреса.", "Проверка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -636,6 +636,33 @@ namespace PrintServerAdmin
                 lblSelectedBranch.Text = $"Выбран филиал: {selected.Value} ({selected.Key})";
             else
                 lblSelectedBranch.Text = "Выбран филиал: не выбран";
+        }
+
+        // ТЗ подразумевает ввод именно IPv4 адреса вида a.b.c.d.
+        private static bool IsValidIPv4(string ip)
+        {
+            if (string.IsNullOrWhiteSpace(ip)) return false;
+
+            var parts = ip.Split('.');
+            if (parts.Length != 4) return false;
+
+            for (int i = 0; i < 4; i++)
+            {
+                string part = parts[i];
+                if (string.IsNullOrEmpty(part)) return false;
+
+                int value = 0;
+                for (int j = 0; j < part.Length; j++)
+                {
+                    char ch = part[j];
+                    if (ch < '0' || ch > '9') return false;
+                    value = value * 10 + (ch - '0');
+                }
+
+                if (value < 0 || value > 255) return false;
+            }
+
+            return true;
         }
     }
 }
