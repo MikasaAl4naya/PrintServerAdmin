@@ -27,7 +27,11 @@ namespace PrintServerAdmin
         public RemotePrinterInfo FindPrinterForDeletion(string invNumber, IProgress<int> progress = null)
         {
             string paddedInv = invNumber.PadLeft(6, '0');
-            var servers = ConfigService.PrintServers;
+            var servers = ConfigService.PrintServers
+                .Concat(ConfigService.TpPrintServers ?? new List<string>())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             int totalServers = servers.Count;
             if (totalServers == 0) return null;
 
@@ -97,7 +101,11 @@ namespace PrintServerAdmin
         // === УЛУЧШЕННЫЙ ПОИСК ПО IP ===
         public IpCheckResult CheckIpOnServers(string ipAddress, IProgress<int> progress = null)
         {
-            var servers = ConfigService.PrintServers;
+            var servers = ConfigService.PrintServers
+                .Concat(ConfigService.TpPrintServers ?? new List<string>())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             int totalServers = servers.Count;
             if (totalServers == 0) return new IpCheckResult { IpExists = false };
 
@@ -218,7 +226,11 @@ namespace PrintServerAdmin
         public List<string> GetAvailableDrivers(IProgress<int> progress = null)
         {
             HashSet<string> drivers = new HashSet<string>();
-            var servers = ConfigService.PrintServers;
+            var servers = ConfigService.PrintServers
+                .Concat(ConfigService.TpPrintServers ?? new List<string>())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             int total = servers.Count;
             if (total == 0) return new List<string>();
 
@@ -325,13 +337,37 @@ namespace PrintServerAdmin
                 // ВОТ ТУТ УБРАЛИ IP_
                 string portName = ipAddress;
 
-                ManagementClass portClass = new ManagementClass(scope, new ManagementPath("Win32_TCPIPPrinterPort"), null);
-                ManagementObject port = portClass.CreateInstance();
-                port["Name"] = portName;
-                port["HostAddress"] = ipAddress;
-                port["Protocol"] = 1;
-                port["PortNumber"] = 9100;
-                port.Put();
+                // По ТЗ: если порт под IP уже существует на нужном сервере,
+                // не создаем новый порт повторно.
+                bool portExists = false;
+                using (var portSearcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_TCPIPPrinterPort WHERE Name = '{portName}'")))
+                {
+                    foreach (ManagementObject existingPort in portSearcher.Get())
+                    {
+                        portExists = true;
+                        try
+                        {
+                            // На всякий случай синхронизируем HostAddress.
+                            existingPort["HostAddress"] = ipAddress;
+                            existingPort.Put();
+                        }
+                        catch { /* если не удалось обновить - пробуем дальше создание принтера */ }
+                        break;
+                    }
+                }
+
+                if (!portExists)
+                {
+                    ManagementClass portClass = new ManagementClass(scope, new ManagementPath("Win32_TCPIPPrinterPort"), null);
+                    ManagementObject port = portClass.CreateInstance();
+                    port["Name"] = portName;
+                    port["HostAddress"] = ipAddress;
+                    port["Protocol"] = 1;
+                    port["PortNumber"] = 9100;
+                    port.Put();
+                }
 
                 progress?.Report(70);
                 ManagementClass printerClass = new ManagementClass(scope, new ManagementPath("Win32_Printer"), null);
@@ -339,6 +375,9 @@ namespace PrintServerAdmin
                 printer["DeviceID"] = printerName;
                 printer["DriverName"] = driverName;
                 printer["PortName"] = portName; // Используем то же имя без префикса
+                // В ТЗ это поле задано как "комментарий".
+                // Сохраняем и Location, чтобы поведение было совместимым с ожиданиями.
+                printer["Comment"] = location;
                 printer["Location"] = location;
                 printer["Network"] = true;
                 printer["Shared"] = true;
