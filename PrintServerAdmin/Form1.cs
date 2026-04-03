@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -53,6 +52,7 @@ namespace PrintServerAdmin
         private Button btnBackStep2;
         private Label lblStatus2;
 
+        private Label valBranch;
         private Label valServer;
         private Label valPrinterName;
         private Label valShareName;
@@ -84,7 +84,7 @@ namespace PrintServerAdmin
         {
             this.Text = "Админ-панель принт-серверов";
             this.Icon = Properties.Resources.printer;
-            this.Size = new Size(600, 360);
+            this.Size = new Size(600, 400);
             this.StartPosition = FormStartPosition.CenterScreen;
 
             tabControl = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9) };
@@ -409,9 +409,13 @@ namespace PrintServerAdmin
         private void SetupStep3Panel()
         {
             pnlStep3.Controls.Add(new Label { Text = "ШАГ 3: Проверка данных", Top = 20, Left = 20, Width = 500, Font = new Font("Segoe UI", 12, FontStyle.Bold) });
-            int yPos = 60; int spacing = 25;
+            int yPos = 55; int spacing = 25;
             Font boldFont = new Font("Segoe UI", 9, FontStyle.Bold);
 
+            pnlStep3.Controls.Add(new Label { Text = "Филиал:", Top = yPos, Left = 20, Width = 140 });
+            valBranch = new Label { Text = "-", Top = yPos, Left = 170, Width = 380, Font = boldFont, ForeColor = Color.DarkSlateBlue };
+            pnlStep3.Controls.Add(valBranch);
+            yPos += spacing;
             pnlStep3.Controls.Add(new Label { Text = "Сервер:", Top = yPos, Left = 20, Width = 140 });
             valServer = new Label { Text = "-", Top = yPos, Left = 170, Width = 380, Font = boldFont, ForeColor = Color.DarkRed };
             pnlStep3.Controls.Add(valServer);
@@ -432,7 +436,7 @@ namespace PrintServerAdmin
             valDriver = new Label { Text = "-", Top = yPos, Left = 170, Width = 380, Font = boldFont };
             pnlStep3.Controls.Add(valDriver);
             yPos += spacing;
-            pnlStep3.Controls.Add(new Label { Text = "Расположение:", Top = yPos, Left = 20, Width = 140 });
+            pnlStep3.Controls.Add(new Label { Text = "Расположение принтера:", Top = yPos, Left = 20, Width = 140 });
             valLocation = new Label { Text = "-", Top = yPos, Left = 170, Width = 380, Font = boldFont };
             pnlStep3.Controls.Add(valLocation);
             yPos += spacing + 15;
@@ -448,7 +452,7 @@ namespace PrintServerAdmin
             yPos += 45;
             lblStatus3 = new Label { Text = "", Top = yPos, Left = 20, Width = 530, Height = 40, ForeColor = Color.DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Italic) };
             pnlStep3.Controls.Add(lblStatus3);
-            pbStep3 = new ProgressBar { Top = 290, Left = 20, Width = 500, Height = 15, Style = ProgressBarStyle.Continuous, Visible = false };
+            pbStep3 = new ProgressBar { Top = 325, Left = 20, Width = 500, Height = 15, Style = ProgressBarStyle.Continuous, Visible = false };
             pnlStep3.Controls.Add(pbStep3);
         }
 
@@ -471,7 +475,9 @@ namespace PrintServerAdmin
 
         private void PrepareStep3()
         {
-            string branchCode = ((KeyValuePair<string, string>)cmbBranch.SelectedItem).Key.ToUpper();
+            var branchPair = (KeyValuePair<string, string>)cmbBranch.SelectedItem;
+            string branchCode = branchPair.Key.ToUpper();
+            string branchName = branchPair.Value;
             string typeCode = ((KeyValuePair<string, string>)cmbType.SelectedItem).Key;
             string paddedInv = txtInvNum.Text.Trim().PadLeft(6, '0');
             _finalPrinterName = $"{branchCode}{paddedInv}-{typeCode}";
@@ -479,25 +485,21 @@ namespace PrintServerAdmin
             _finalDriver = cmbDriver.Text;
             _finalLocation = txtLocation.Text.Trim();
             _finalServer = "printsrv01";
-            bool hasTypedMap = false;
-            if (ConfigService.Mappings != null)
-            {
-                var typedMap = ConfigService.Mappings.Find(m =>
-                    m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(m.PrinterType) &&
-                    m.PrinterType.Equals(typeCode, StringComparison.OrdinalIgnoreCase));
-                hasTypedMap = typedMap != null;
 
-                var map = typedMap ?? ConfigService.Mappings.Find(m =>
+            // TP (этикеточные) — только сервер из servers_list.json: tpTarget или первый из tp (по умолчанию LG166PS).
+            // PR/CP/MF — только server_mapping.json по филиалу (строки без PrinterType → printsrv01/printsrv02 из пула default).
+            if (typeCode.Equals("TP", StringComparison.OrdinalIgnoreCase))
+                _finalServer = ConfigService.GetTpInstallServer();
+            else if (ConfigService.Mappings != null)
+            {
+                var map = ConfigService.Mappings.Find(m =>
                     m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase) &&
                     string.IsNullOrWhiteSpace(m.PrinterType));
-
-                if (map != null) _finalServer = map.PrintServer;
+                if (map != null)
+                    _finalServer = map.PrintServer;
             }
 
-            if (typeCode.Equals("TP", StringComparison.OrdinalIgnoreCase) && !hasTypedMap && ConfigService.TpPrintServers.Count > 0)
-                _finalServer = ConfigService.TpPrintServers[0];
-
+            valBranch.Text = $"{branchName} ({branchCode})";
             valServer.Text = _finalServer; valPrinterName.Text = _finalPrinterName;
             valShareName.Text = _finalShareName; valIp.Text = _currentIp;
             valDriver.Text = _finalDriver; valLocation.Text = _finalLocation;

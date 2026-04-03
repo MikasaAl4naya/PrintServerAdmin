@@ -27,6 +27,24 @@ namespace PrintServerAdmin
         public static List<City> Cities { get; private set; } = new List<City>();
         public static List<ServerMapping> Mappings { get; private set; } = new List<ServerMapping>();
 
+        private static string _tpInstallOverride = "";
+
+        /// <summary>Сервер установки термотрансферных принтеров: tpTarget в JSON или первый из массива tp, иначе LG166PS.</summary>
+        public static string GetTpInstallServer()
+        {
+            if (!string.IsNullOrWhiteSpace(_tpInstallOverride))
+                return _tpInstallOverride.Trim();
+            if (TpPrintServers != null)
+            {
+                foreach (var s in TpPrintServers)
+                {
+                    if (!string.IsNullOrWhiteSpace(s))
+                        return s.Trim();
+                }
+            }
+            return "LG166PS";
+        }
+
         public static void LoadConfigs()
         {
             try
@@ -74,6 +92,7 @@ namespace PrintServerAdmin
             var token = JToken.Parse(serversJson);
             PrintServers = new List<string>();
             TpPrintServers = new List<string>();
+            _tpInstallOverride = "";
 
             // Backward compatibility: old format ["srv1", "srv2"]
             if (token.Type == JTokenType.Array)
@@ -87,6 +106,7 @@ namespace PrintServerAdmin
                 JObject root = (JObject)token;
                 PrintServers = root["default"]?.ToObject<List<string>>() ?? new List<string>();
                 TpPrintServers = root["tp"]?.ToObject<List<string>>() ?? new List<string>();
+                _tpInstallOverride = root["tpTarget"]?.ToString() ?? "";
 
                 if (PrintServers.Count == 0 && root["servers"] != null)
                     PrintServers = root["servers"].ToObject<List<string>>() ?? new List<string>();
