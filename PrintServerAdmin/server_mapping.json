@@ -1,0 +1,7 @@
+[
+  { "CityCode": "IRK", "PrintServer": "LG166PS" },
+  { "CityCode": "NVS", "PrintServer": "printsrv01" },
+  { "CityCode": "KRS", "PrintServer": "printsrv02" },
+  { "CityCode": "MSK", "PrintServer": "printsrv01" },
+  { "CityCode": "IRK", "PrinterType": "TP", "PrintServer": "LG166PS" }
+]

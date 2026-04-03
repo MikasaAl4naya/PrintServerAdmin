@@ -1,0 +1,10 @@
+{
+  "default": [
+    "LG166PS",
+    "printsrv01",
+    "printsrv02"
+  ],
+  "tp": [
+    "LG166PS"
+  ]
+}
