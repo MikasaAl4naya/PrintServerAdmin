@@ -18,6 +18,7 @@ namespace PrintServerAdmin
         public string CityCode { get; set; } // Идеально совпадает с твоим файлом
         public string PrinterType { get; set; }
         public string PrintServer { get; set; }
+        public string LabelPrintServer { get; set; }
     }
 
     public static class ConfigService

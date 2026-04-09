@@ -1,7 +1,367 @@
 [
-  { "CityCode": "IRK", "PrintServer": "LG166PS" },
-  { "CityCode": "NVS", "PrintServer": "printsrv01" },
-  { "CityCode": "KRS", "PrintServer": "printsrv02" },
-  { "CityCode": "MSK", "PrintServer": "printsrv01" },
-  { "CityCode": "IRK", "PrinterType": "TP", "PrintServer": "LG166PS" }
+    {
+        "CityCode": "abkn",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "ekb",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "agi",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "uf",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "nsk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "srgt",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "ach",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "smr",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "ang",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "yar",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "irk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "nn",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "art",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "krdr",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "bg",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "msk",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "biro",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "rzn",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "blag",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "spb",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "krsk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "rost",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "kyz",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "vor",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "blv",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "brz",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "br",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "shj",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "ber",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "kas",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "brn",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "kzn",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "biy",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "aa",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "cher",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "nrs",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "chi",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "omsk",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "gal",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "ptg",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "hab",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "pvd",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "kem",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "shmt",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "kkk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "tlg",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "kna",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "tianjin",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "kns",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "zj",
+        "PrintServer": "printsrv02",
+        "LabelPrintServer": "printsrv02"
+    },
+    {
+        "CityCode": "lkz",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "manchur",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "nhdk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "nvkz",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "nzn",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "dubai",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "pkp",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "ptk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "shel",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "tnz",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "tomsk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "tsh",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "tu",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "twn",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "uht",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "ui",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "uk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "us",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "ussk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "uu",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "vldk",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "yus",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    },
+    {
+        "CityCode": "danyang",
+        "PrintServer": "printsrv01",
+        "LabelPrintServer": "printsrv01"
+    }
 ]

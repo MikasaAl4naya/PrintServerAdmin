@@ -486,15 +486,35 @@ namespace PrintServerAdmin
             _finalLocation = txtLocation.Text.Trim();
             _finalServer = "printsrv01";
 
-            // TP (этикеточные) — только сервер из servers_list.json: tpTarget или первый из tp (по умолчанию LG166PS).
-            // PR/CP/MF — только server_mapping.json по филиалу (строки без PrinterType → printsrv01/printsrv02 из пула default).
+            // Для обычных и TP сервер определяется по server_mapping.json и CityCode.
+            // Для обратной совместимости оставлен fallback на старую схему из servers_list.json.
             if (typeCode.Equals("TP", StringComparison.OrdinalIgnoreCase))
-                _finalServer = ConfigService.GetTpInstallServer();
+            {
+                var map = ConfigService.Mappings?.Find(m =>
+                    m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(m.LabelPrintServer));
+
+                if (map != null)
+                    _finalServer = map.LabelPrintServer;
+                else
+                {
+                    // Legacy fallback: старая строка с PrinterType=TP.
+                    var legacyTpMap = ConfigService.Mappings?.Find(m =>
+                        m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase) &&
+                        "TP".Equals(m.PrinterType, StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(m.PrintServer));
+                    if (legacyTpMap != null)
+                        _finalServer = legacyTpMap.PrintServer;
+                    else
+                        _finalServer = ConfigService.GetTpInstallServer();
+                }
+            }
             else if (ConfigService.Mappings != null)
             {
                 var map = ConfigService.Mappings.Find(m =>
                     m.CityCode.Equals(branchCode, StringComparison.OrdinalIgnoreCase) &&
-                    string.IsNullOrWhiteSpace(m.PrinterType));
+                    string.IsNullOrWhiteSpace(m.PrinterType) &&
+                    !string.IsNullOrWhiteSpace(m.PrintServer));
                 if (map != null)
                     _finalServer = map.PrintServer;
             }
